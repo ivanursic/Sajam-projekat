@@ -4,13 +4,12 @@ namespace SajamKnjiga.Storage;
 
 public class Storage<T> where T : ISerializable, new()
 {
-    private readonly string _fileName = $"..{Path.DirectorySeparatorChar}..{Path.DirectorySeparatorChar}..{Path.DirectorySeparatorChar}Data{Path.DirectorySeparatorChar}{{0}}";
-
+    private readonly string _fileName;
     private readonly Serializer<T> _serializer = new();
 
     public Storage(string fileName)
     {
-        _fileName = string.Format(_fileName, fileName);
+        _fileName = $"..{Path.DirectorySeparatorChar}..{Path.DirectorySeparatorChar}..{Path.DirectorySeparatorChar}Data{Path.DirectorySeparatorChar}{fileName}";
     }
 
     public List<T> Load()

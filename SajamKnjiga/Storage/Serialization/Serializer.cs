@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
 namespace SajamKnjiga.Serialization;
 
@@ -12,15 +8,14 @@ public class Serializer<T> where T : ISerializable, new()
 
     public string ToCSV(List<T> objects)
     {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder csv = new StringBuilder();
 
-        foreach (ISerializable obj in objects)
+        foreach (T obj in objects)
         {
-            string line = string.Join(Delimiter.ToString(), obj.ToCSV());
-            sb.AppendLine(line);
+            csv.AppendLine(string.Join(Delimiter, obj.ToCSV()));
         }
 
-        return sb.ToString();
+        return csv.ToString();
     }
 
     public List<T> FromCSV(IEnumerable<string> lines)
@@ -29,9 +24,14 @@ public class Serializer<T> where T : ISerializable, new()
 
         foreach (string line in lines)
         {
-            string[] csvValues = line.Split(Delimiter);
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            string[] values = line.Split(Delimiter);
+
             T obj = new T();
-            obj.FromCSV(csvValues);
+            obj.FromCSV(values);
+
             objects.Add(obj);
         }
 

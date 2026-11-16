@@ -4,43 +4,56 @@ public static class ConsoleViewUtils
 {
     public static int SafeInputInt()
     {
-        int input;
-        string rawInput = System.Console.ReadLine() ?? string.Empty;
-
-        while (!int.TryParse(rawInput, out input))
+        while (true)
         {
-            System.Console.WriteLine("Not a valid number, try again:");
-            rawInput = System.Console.ReadLine() ?? string.Empty;
-        }
+            if (int.TryParse(System.Console.ReadLine(), out int result))
+                return result;
 
-        return input;
+            System.Console.WriteLine("Invalid number. Try again:");
+        }
     }
 
     public static double SafeInputDouble()
     {
-        double input;
-        string rawInput = System.Console.ReadLine() ?? string.Empty;
-
-        while (!double.TryParse(rawInput, out input))
+        while (true)
         {
-            System.Console.WriteLine("Not a valid number, try again:");
-            rawInput = System.Console.ReadLine() ?? string.Empty;
-        }
+            if (double.TryParse(System.Console.ReadLine(), out double result))
+                return result;
 
-        return input;
+            System.Console.WriteLine("Invalid number. Try again:");
+        }
     }
 
     public static DateTime SafeInputDate()
     {
-        DateTime input;
-        string rawInput = System.Console.ReadLine() ?? string.Empty;
-
-        while (!DateTime.TryParse(rawInput, out input))
+        while (true)
         {
-            System.Console.WriteLine("Not a valid date, try again:");
-            rawInput = System.Console.ReadLine() ?? string.Empty;
-        }
+            if (DateTime.TryParse(System.Console.ReadLine(), out DateTime result))
+                return result;
 
-        return input;
+            System.Console.WriteLine("Invalid date. Try again:");
+        }
+    }
+
+    public static List<int> SafeInputIds()
+    {
+        while (true)
+        {
+            string input = System.Console.ReadLine() ?? "";
+
+            if (string.IsNullOrWhiteSpace(input))
+                return new List<int>();
+
+            string[] values = input.Split(',');
+
+            try
+            {
+                return values.Select(int.Parse).ToList();
+            }
+            catch
+            {
+                System.Console.WriteLine("Enter IDs separated by commas:");
+            }
+        }
     }
 }
