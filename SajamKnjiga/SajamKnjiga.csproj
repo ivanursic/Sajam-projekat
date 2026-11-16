@@ -8,9 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="DAO\" />
     <Folder Include="Data\" />
-    <Folder Include="Console\" />
   </ItemGroup>
 
 </Project>
