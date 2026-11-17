@@ -1,4 +1,4 @@
-﻿using SajamKnjiga.Model;
+using SajamKnjiga.Model;
 using SajamKnjiga.Storage;
 
 namespace SajamKnjiga.DAO;
@@ -16,8 +16,7 @@ public class PurchasesDAO
 
     private int GenerateId()
     {
-        if (_purchases.Count == 0) return 0;
-        return _purchases[^1].Id + 1;
+        return _purchases.Count == 0 ? 0 : _purchases.Max(p => p.Id) + 1;
     }
 
     public Purchase AddPurchase(Purchase purchase)

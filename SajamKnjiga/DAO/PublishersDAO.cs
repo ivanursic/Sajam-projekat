@@ -1,4 +1,4 @@
-﻿using SajamKnjiga.Model;
+using SajamKnjiga.Model;
 using SajamKnjiga.Storage;
 
 namespace SajamKnjiga.DAO;
@@ -16,8 +16,7 @@ public class PublishersDAO
 
     private int GenerateId()
     {
-        if (_publishers.Count == 0) return 0;
-        return _publishers[^1].Id + 1;
+        return _publishers.Count == 0 ? 0 : _publishers.Max(p => p.Id) + 1;
     }
 
     public Publisher AddPublisher(Publisher publisher)

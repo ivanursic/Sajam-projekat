@@ -1,4 +1,4 @@
-﻿using SajamKnjiga.DAO;
+using SajamKnjiga.DAO;
 using SajamKnjiga.Model;
 
 namespace SajamKnjiga.Console;
@@ -6,10 +6,14 @@ namespace SajamKnjiga.Console;
 public class AddressConsoleView
 {
     private readonly AddressesDAO _addressesDAO;
+    private readonly VisitorsDAO _visitorsDAO;
+    private readonly AuthorsDAO _authorsDAO;
 
-    public AddressConsoleView(AddressesDAO addressesDAO)
+    public AddressConsoleView(AddressesDAO addressesDAO, VisitorsDAO visitorsDAO, AuthorsDAO authorsDAO)
     {
         _addressesDAO = addressesDAO;
+        _visitorsDAO = visitorsDAO;
+        _authorsDAO = authorsDAO;
     }
 
     public void RunMenu()
@@ -23,9 +27,7 @@ public class AddressConsoleView
             System.Console.WriteLine("4: Remove address");
             System.Console.WriteLine("0: Back");
 
-            string input = System.Console.ReadLine() ?? "0";
-
-            switch (input)
+            switch (System.Console.ReadLine())
             {
                 case "1": ShowAllAddresses(); break;
                 case "2": AddAddress(); break;
@@ -37,69 +39,59 @@ public class AddressConsoleView
         }
     }
 
-    private Address InputAddress()
+    private Address InputAddress() => new Address
     {
-        Address address = new Address();
+        Street = ReadText("Street: "),
+        Number = ReadText("Number: "),
+        City = ReadText("City: "),
+        Country = ReadText("Country: ")
+    };
 
-        System.Console.Write("Street: ");
-        address.Street = System.Console.ReadLine() ?? "";
-
-        System.Console.Write("Number: ");
-        address.Number = System.Console.ReadLine() ?? "";
-
-        System.Console.Write("City: ");
-        address.City = System.Console.ReadLine() ?? "";
-
-        System.Console.Write("Country: ");
-        address.Country = System.Console.ReadLine() ?? "";
-
-        return address;
+    private static string ReadText(string prompt)
+    {
+        System.Console.Write(prompt);
+        return System.Console.ReadLine() ?? string.Empty;
     }
 
     private void AddAddress()
     {
-        Address address = InputAddress();
-        _addressesDAO.AddAddress(address);
+        _addressesDAO.AddAddress(InputAddress());
         System.Console.WriteLine("Address added.");
     }
 
     private void UpdateAddress()
     {
         System.Console.Write("Enter address ID: ");
-        int id = ConsoleViewUtils.SafeInputInt();
-
+        int id = ConsoleViewUtils.ReadExistingId(_addressesDAO.GetAllAddresses().Select(a => a.Id), "address");
         Address address = InputAddress();
         address.Id = id;
-
         _addressesDAO.UpdateAddress(address);
-        System.Console.WriteLine("Address updated if the ID exists.");
+        System.Console.WriteLine("Address updated.");
     }
 
     private void RemoveAddress()
     {
         System.Console.Write("Enter address ID: ");
-        int id = ConsoleViewUtils.SafeInputInt();
+        int id = ConsoleViewUtils.ReadExistingId(_addressesDAO.GetAllAddresses().Select(a => a.Id), "address");
+
+        bool inUse = _visitorsDAO.GetAllVisitors().Any(v => v.AddressId == id) ||
+                     _authorsDAO.GetAllAuthors().Any(a => a.AddressId == id);
+        if (inUse)
+        {
+            System.Console.WriteLine("Address cannot be removed because a visitor or author uses it.");
+            return;
+        }
 
         _addressesDAO.RemoveAddress(id);
-        System.Console.WriteLine("Address removed if the ID exists.");
+        System.Console.WriteLine("Address removed.");
     }
 
     private void ShowAllAddresses()
     {
         List<Address> addresses = _addressesDAO.GetAllAddresses();
+        if (addresses.Count == 0) { System.Console.WriteLine("No addresses found."); return; }
 
-        if (addresses.Count == 0)
-        {
-            System.Console.WriteLine("No addresses found.");
-            return;
-        }
-
-        foreach (Address address in addresses)
-        {
-            System.Console.WriteLine(
-                $"ID: {address.Id}, Street: {address.Street}, " +
-                $"Number: {address.Number}, City: {address.City}, " +
-                $"Country: {address.Country}");
-        }
+        foreach (Address a in addresses)
+            System.Console.WriteLine($"ID: {a.Id}, Street: {a.Street}, Number: {a.Number}, City: {a.City}, Country: {a.Country}");
     }
 }

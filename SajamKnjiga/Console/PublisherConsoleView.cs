@@ -1,4 +1,4 @@
-﻿using SajamKnjiga.DAO;
+using SajamKnjiga.DAO;
 using SajamKnjiga.Model;
 
 namespace SajamKnjiga.Console;
@@ -6,130 +6,79 @@ namespace SajamKnjiga.Console;
 public class PublisherConsoleView
 {
     private readonly PublishersDAO _publishersDao;
+    private readonly AuthorsDAO _authorsDao;
+    private readonly BooksDAO _booksDao;
 
-    public PublisherConsoleView(PublishersDAO publishersDao)
+    public PublisherConsoleView(PublishersDAO publishersDao, AuthorsDAO authorsDao, BooksDAO booksDao)
     {
-        _publishersDao = publishersDao;
+        _publishersDao = publishersDao; _authorsDao = authorsDao; _booksDao = booksDao;
     }
 
     public void RunMenu()
     {
         while (true)
         {
-            System.Console.WriteLine("\n--- Publishers ---");
-            System.Console.WriteLine("1: Show all publishers");
-            System.Console.WriteLine("2: Add publisher");
-            System.Console.WriteLine("3: Update publisher");
-            System.Console.WriteLine("4: Remove publisher");
-            System.Console.WriteLine("0: Back");
-
-            string input = System.Console.ReadLine() ?? "0";
-
-            switch (input)
+            System.Console.WriteLine("\n--- Publishers ---\n1: Show all publishers\n2: Add publisher\n3: Update publisher\n4: Remove publisher\n0: Back");
+            switch (System.Console.ReadLine())
             {
-                case "1":
-                    ShowAllPublishers();
-                    break;
-                case "2":
-                    AddPublisher();
-                    break;
-                case "3":
-                    UpdatePublisher();
-                    break;
-                case "4":
-                    RemovePublisher();
-                    break;
-                case "0":
-                    return;
-                default:
-                    System.Console.WriteLine("Invalid option.");
-                    break;
+                case "1": ShowAllPublishers(); break;
+                case "2": AddPublisher(); break;
+                case "3": UpdatePublisher(); break;
+                case "4": RemovePublisher(); break;
+                case "0": return;
+                default: System.Console.WriteLine("Invalid option."); break;
             }
         }
     }
 
-    private void ShowAllPublishers()
+    private Publisher InputPublisher(int? existingPublisherId = null)
     {
-        foreach (Publisher publisher in _publishersDao.GetAllPublishers())
-        {
-            System.Console.WriteLine(
-                $"ID: {publisher.Id} | Code: {publisher.Code} | " +
-                $"Name: {publisher.Name} | Head author ID: {publisher.HeadAuthorId} | " +
-                $"Author IDs: {string.Join(", ", publisher.AuthorIds)} | " +
-                $"Book IDs: {string.Join(", ", publisher.BookIds)}"
-            );
-        }
+        Publisher p = new Publisher();
+        System.Console.Write("Enter publisher code: "); p.Code = System.Console.ReadLine() ?? string.Empty;
+        System.Console.Write("Enter publisher name: "); p.Name = System.Console.ReadLine() ?? string.Empty;
+        System.Console.Write("Enter head author ID (author must have at least 5 years of experience): ");
+        p.HeadAuthorId = ConsoleViewUtils.ReadExistingId(_authorsDao.GetAllAuthors().Where(a => a.YearsOfExperience >= 5).Select(a => a.Id), "eligible head author (5+ years experience)");
+        p.AuthorIds = existingPublisherId.HasValue
+            ? _booksDao.GetAllBooks().Where(b => b.PublisherId == existingPublisherId.Value)
+                .SelectMany(b => b.AuthorIds).Append(p.HeadAuthorId).Distinct().ToList()
+            : new List<int> { p.HeadAuthorId };
+        p.BookIds = existingPublisherId.HasValue
+            ? _booksDao.GetAllBooks().Where(b => b.PublisherId == existingPublisherId.Value)
+                .Select(b => b.Id).ToList()
+            : new List<int>();
+        return p;
     }
 
     private void AddPublisher()
     {
-        Publisher publisher = InputPublisher();
-        _publishersDao.AddPublisher(publisher);
+        if (!_authorsDao.GetAllAuthors().Any(a => a.YearsOfExperience >= 5))
+        { System.Console.WriteLine("Add an author with at least five years of experience before creating a publisher."); return; }
+        _publishersDao.AddPublisher(InputPublisher());
         System.Console.WriteLine("Publisher added.");
     }
 
     private void UpdatePublisher()
     {
-        System.Console.WriteLine("Enter publisher ID:");
-        int id = ConsoleViewUtils.SafeInputInt();
-
-        Publisher publisher = InputPublisher();
-        publisher.Id = id;
-
-        if (_publishersDao.UpdatePublisher(publisher) == null)
-        {
-            System.Console.WriteLine("Publisher not found.");
-            return;
-        }
-
-        System.Console.WriteLine("Publisher updated.");
+        System.Console.Write("Enter publisher ID: ");
+        int id = ConsoleViewUtils.ReadExistingId(_publishersDao.GetAllPublishers().Select(p => p.Id), "publisher");
+        Publisher p = InputPublisher(id); p.Id = id;
+        _publishersDao.UpdatePublisher(p); System.Console.WriteLine("Publisher updated.");
     }
 
     private void RemovePublisher()
     {
-        System.Console.WriteLine("Enter publisher ID:");
-        int id = ConsoleViewUtils.SafeInputInt();
-
-        if (_publishersDao.RemovePublisher(id) == null)
-        {
-            System.Console.WriteLine("Publisher not found.");
-            return;
-        }
-
-        System.Console.WriteLine("Publisher removed.");
+        System.Console.Write("Enter publisher ID: ");
+        int id = ConsoleViewUtils.ReadExistingId(_publishersDao.GetAllPublishers().Select(p => p.Id), "publisher");
+        if (_booksDao.GetAllBooks().Any(b => b.PublisherId == id))
+        { System.Console.WriteLine("Publisher cannot be removed because a book references it."); return; }
+        _publishersDao.RemovePublisher(id); System.Console.WriteLine("Publisher removed.");
     }
 
-    private Publisher InputPublisher()
+    private void ShowAllPublishers()
     {
-        Publisher publisher = new Publisher();
-
-        System.Console.WriteLine("Enter publisher code:");
-        publisher.Code = System.Console.ReadLine() ?? string.Empty;
-
-        System.Console.WriteLine("Enter publisher name:");
-        publisher.Name = System.Console.ReadLine() ?? string.Empty;
-
-        System.Console.WriteLine("Enter head author ID:");
-        publisher.HeadAuthorId = ConsoleViewUtils.SafeInputInt();
-
-        System.Console.WriteLine("Enter author IDs separated by commas (or leave empty):");
-        publisher.AuthorIds = ReadIds();
-
-        System.Console.WriteLine("Enter book IDs separated by commas (or leave empty):");
-        publisher.BookIds = ReadIds();
-
-        return publisher;
-    }
-
-    private List<int> ReadIds()
-    {
-        string input = System.Console.ReadLine() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(input))
-            return new List<int>();
-
-        return input.Split(',')
-            .Select(id => int.Parse(id.Trim()))
-            .ToList();
+        List<Publisher> list = _publishersDao.GetAllPublishers();
+        if (list.Count == 0) { System.Console.WriteLine("No publishers found."); return; }
+        foreach (Publisher p in list)
+            System.Console.WriteLine($"ID: {p.Id} | Code: {p.Code} | Name: {p.Name} | Head author ID: {p.HeadAuthorId} | Author IDs: {string.Join(", ", p.AuthorIds)} | Book IDs: {string.Join(", ", p.BookIds)}");
     }
 }

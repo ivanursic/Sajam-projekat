@@ -1,4 +1,4 @@
-﻿using SajamKnjiga.DAO;
+using SajamKnjiga.DAO;
 using SajamKnjiga.Model;
 
 namespace SajamKnjiga.Console;
@@ -6,26 +6,23 @@ namespace SajamKnjiga.Console;
 public class BookConsoleView
 {
     private readonly BooksDAO _booksDAO;
+    private readonly AuthorsDAO _authorsDAO;
+    private readonly PublishersDAO _publishersDAO;
+    private readonly VisitorsDAO _visitorsDAO;
+    private readonly PurchasesDAO _purchasesDAO;
 
-    public BookConsoleView(BooksDAO booksDAO)
+    public BookConsoleView(BooksDAO booksDAO, AuthorsDAO authorsDAO, PublishersDAO publishersDAO, VisitorsDAO visitorsDAO, PurchasesDAO purchasesDAO)
     {
-        _booksDAO = booksDAO;
+        _booksDAO = booksDAO; _authorsDAO = authorsDAO; _publishersDAO = publishersDAO;
+        _visitorsDAO = visitorsDAO; _purchasesDAO = purchasesDAO;
     }
 
     public void RunMenu()
     {
         while (true)
         {
-            System.Console.WriteLine("\n=== BOOKS ===");
-            System.Console.WriteLine("1: Show all books");
-            System.Console.WriteLine("2: Add book");
-            System.Console.WriteLine("3: Update book");
-            System.Console.WriteLine("4: Remove book");
-            System.Console.WriteLine("0: Back");
-
-            string input = System.Console.ReadLine() ?? "0";
-
-            switch (input)
+            System.Console.WriteLine("\n=== BOOKS ===\n1: Show all books\n2: Add book\n3: Update book\n4: Remove book\n0: Back");
+            switch (System.Console.ReadLine())
             {
                 case "1": ShowAllBooks(); break;
                 case "2": AddBook(); break;
@@ -39,89 +36,128 @@ public class BookConsoleView
 
     private Book InputBook()
     {
-        Book book = new Book();
-
-        System.Console.Write("ISBN: ");
-        book.ISBN = System.Console.ReadLine() ?? "";
-
-        System.Console.Write("Title: ");
-        book.Title = System.Console.ReadLine() ?? "";
-
-        System.Console.Write("Genre: ");
-        book.Genre = System.Console.ReadLine() ?? "";
-
-        System.Console.Write("Publication year: ");
-        book.PublicationYear = ConsoleViewUtils.SafeInputInt();
-
-        System.Console.Write("Price: ");
-        book.Price = ConsoleViewUtils.SafeInputDouble();
-
-        System.Console.Write("Page count: ");
-        book.PageCount = ConsoleViewUtils.SafeInputInt();
-
-        System.Console.Write("Author IDs (separated by commas): ");
-        book.AuthorIds = ConsoleViewUtils.SafeInputIds();
-
+        Book b = new Book();
+        System.Console.Write("ISBN: "); b.ISBN = System.Console.ReadLine() ?? string.Empty;
+        System.Console.Write("Title: "); b.Title = System.Console.ReadLine() ?? string.Empty;
+        System.Console.Write("Genre: "); b.Genre = System.Console.ReadLine() ?? string.Empty;
+        System.Console.Write("Publication year: "); b.PublicationYear = ConsoleViewUtils.SafeInputInt();
+        System.Console.Write("Price: "); b.Price = ConsoleViewUtils.SafeInputDouble();
+        System.Console.Write("Page count: "); b.PageCount = ConsoleViewUtils.SafeInputInt();
+        do
+        {
+            System.Console.Write("Author IDs (comma-separated; at least one required): ");
+            b.AuthorIds = ConsoleViewUtils.ReadExistingIds(_authorsDAO.GetAllAuthors().Select(a => a.Id), "author");
+            if (b.AuthorIds.Count == 0) System.Console.WriteLine("A book must have at least one author.");
+        } while (b.AuthorIds.Count == 0);
         System.Console.Write("Publisher ID: ");
-        book.PublisherId = ConsoleViewUtils.SafeInputInt();
-
-        System.Console.Write("Visitor IDs who purchased the book (separated by commas): ");
-        book.PurchasedByVisitorIds = ConsoleViewUtils.SafeInputIds();
-
-        System.Console.Write("Visitor IDs who wishlisted the book (separated by commas): ");
-        book.WishlistedByVisitorIds = ConsoleViewUtils.SafeInputIds();
-
-        return book;
+        b.PublisherId = ConsoleViewUtils.ReadExistingId(_publishersDAO.GetAllPublishers().Select(p => p.Id), "publisher");
+        b.PurchasedByVisitorIds = new List<int>();
+        b.WishlistedByVisitorIds = new List<int>();
+        return b;
     }
 
     private void AddBook()
     {
+        if (_publishersDAO.GetAllPublishers().Count == 0)
+        { System.Console.WriteLine("Add a publisher before creating a book."); return; }
+        if (_authorsDAO.GetAllAuthors().Count == 0)
+        { System.Console.WriteLine("Add at least one author before creating a book."); return; }
         Book book = InputBook();
         _booksDAO.AddBook(book);
+        SynchronizeBookReferences(book);
         System.Console.WriteLine("Book added.");
     }
 
     private void UpdateBook()
     {
         System.Console.Write("Enter book ID: ");
-        int id = ConsoleViewUtils.SafeInputInt();
+        int id = ConsoleViewUtils.ReadExistingId(_booksDAO.GetAllBooks().Select(b => b.Id), "book");
+        Book b = InputBook(); b.Id = id;
+        b.PurchasedByVisitorIds = _purchasesDAO.GetAllPurchases().Where(p => p.BookId == id).Select(p => p.VisitorId).Distinct().ToList();
+        b.WishlistedByVisitorIds = _visitorsDAO.GetAllVisitors().Where(v => v.WishlistBookIds.Contains(id)).Select(v => v.Id).ToList();
+        _booksDAO.UpdateBook(b);
+        SynchronizeBookReferences(b);
+        System.Console.WriteLine("Book updated.");
+    }
 
-        Book book = InputBook();
-        book.Id = id;
+    private void SynchronizeBookReferences(Book book)
+    {
+        foreach (Author author in _authorsDAO.GetAllAuthors())
+        {
+            if (book.AuthorIds.Contains(author.Id))
+            {
+                if (!author.BookIds.Contains(book.Id)) author.BookIds.Add(book.Id);
+            }
+            else
+            {
+                author.BookIds.Remove(book.Id);
+            }
+            _authorsDAO.UpdateAuthor(author);
+        }
 
-        _booksDAO.UpdateBook(book);
-        System.Console.WriteLine("Book updated if the ID exists.");
+        foreach (Publisher publisher in _publishersDAO.GetAllPublishers())
+        {
+            if (publisher.Id == book.PublisherId)
+            {
+                if (!publisher.BookIds.Contains(book.Id)) publisher.BookIds.Add(book.Id);
+            }
+            else
+            {
+                publisher.BookIds.Remove(book.Id);
+            }
+            publisher.AuthorIds = _booksDAO.GetAllBooks()
+                .Where(b => b.PublisherId == publisher.Id)
+                .SelectMany(b => b.AuthorIds)
+                .Append(publisher.HeadAuthorId)
+                .Distinct()
+                .ToList();
+            _publishersDAO.UpdatePublisher(publisher);
+        }
     }
 
     private void RemoveBook()
     {
         System.Console.Write("Enter book ID: ");
-        int id = ConsoleViewUtils.SafeInputInt();
+        int id = ConsoleViewUtils.ReadExistingId(_booksDAO.GetAllBooks().Select(b => b.Id), "book");
+        Book book = _booksDAO.GetAllBooks().First(b => b.Id == id);
+
+        bool inUse = book.PurchasedByVisitorIds.Count > 0 ||
+                     book.WishlistedByVisitorIds.Count > 0 ||
+                     _purchasesDAO.GetAllPurchases().Any(p => p.BookId == id) ||
+                     _visitorsDAO.GetAllVisitors().Any(v => v.WishlistBookIds.Contains(id));
+        if (inUse)
+        {
+            System.Console.WriteLine("Book cannot be removed because a visitor has purchased or wishlisted it.");
+            return;
+        }
+
+        foreach (Author author in _authorsDAO.GetAllAuthors())
+        {
+            author.BookIds.Remove(id);
+            _authorsDAO.UpdateAuthor(author);
+        }
+
+        foreach (Publisher publisher in _publishersDAO.GetAllPublishers())
+        {
+            publisher.BookIds.Remove(id);
+            publisher.AuthorIds = _booksDAO.GetAllBooks()
+                .Where(b => b.Id != id && b.PublisherId == publisher.Id)
+                .SelectMany(b => b.AuthorIds)
+                .Append(publisher.HeadAuthorId)
+                .Distinct()
+                .ToList();
+            _publishersDAO.UpdatePublisher(publisher);
+        }
 
         _booksDAO.RemoveBook(id);
-        System.Console.WriteLine("Book removed if the ID exists.");
+        System.Console.WriteLine("Book removed.");
     }
 
     private void ShowAllBooks()
     {
         List<Book> books = _booksDAO.GetAllBooks();
-
-        if (books.Count == 0)
-        {
-            System.Console.WriteLine("No books found.");
-            return;
-        }
-
-        foreach (Book book in books)
-        {
-            System.Console.WriteLine(
-                $"ID: {book.Id}, ISBN: {book.ISBN}, Title: {book.Title}, " +
-                $"Genre: {book.Genre}, Publication year: {book.PublicationYear}, " +
-                $"Price: {book.Price}, Pages: {book.PageCount}, " +
-                $"Author IDs: {string.Join(", ", book.AuthorIds)}, " +
-                $"Publisher ID: {book.PublisherId}, " +
-                $"Purchased by visitor IDs: {string.Join(", ", book.PurchasedByVisitorIds)}, " +
-                $"Wishlisted by visitor IDs: {string.Join(", ", book.WishlistedByVisitorIds)}");
-        }
+        if (books.Count == 0) { System.Console.WriteLine("No books found."); return; }
+        foreach (Book b in books)
+            System.Console.WriteLine($"ID: {b.Id}, ISBN: {b.ISBN}, Title: {b.Title}, Genre: {b.Genre}, Publication year: {b.PublicationYear}, Price: {b.Price}, Pages: {b.PageCount}, Author IDs: {string.Join(", ", b.AuthorIds)}, Publisher ID: {b.PublisherId}, Purchased by visitor IDs: {string.Join(", ", b.PurchasedByVisitorIds)}, Wishlisted by visitor IDs: {string.Join(", ", b.WishlistedByVisitorIds)}");
     }
 }

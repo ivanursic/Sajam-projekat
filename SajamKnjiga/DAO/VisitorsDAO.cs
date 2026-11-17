@@ -1,4 +1,4 @@
-﻿using SajamKnjiga.Model;
+using SajamKnjiga.Model;
 using SajamKnjiga.Storage;
 
 namespace SajamKnjiga.DAO;
